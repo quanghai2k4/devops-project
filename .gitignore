@@ -1,0 +1,17 @@
+# 1. Các file môi trường chứa bí mật
+.env
+.env.production
+.env.local
+
+# 2. Các file Terraform chứa state và biến nhạy cảm
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+
+# 3. Các key kết nối (SSH keys)
+*.pem
+
+# 4. Các thư mục hệ thống/build
+node_modules/
+.DS_Store

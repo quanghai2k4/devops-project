@@ -1,0 +1,30 @@
+- name: Deploy Cyberpunk Dashboard
+  hosts: webservers
+  become: true  # Chạy với quyền sudo (root)
+  
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Remove default Nginx index.html
+      file:
+        path: /var/www/html/index.nginx-debian.html
+        state: absent
+
+    - name: Copy Dashboard to server
+      copy:
+        src: ../app/index.html   # Đường dẫn trỏ tới file html ở thư mục app
+        dest: /var/www/html/index.html
+        mode: '0644'
+
+    - name: Restart Nginx to apply changes
+      service:
+        name: nginx
+        state: restarted
