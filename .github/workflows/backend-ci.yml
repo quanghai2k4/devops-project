@@ -37,9 +37,9 @@ jobs:
         working-directory: backend
         run: npm test || echo "Tests skipped - no tests configured"
 
-      - name: Check build
+      - name: Check syntax
         working-directory: backend
-        run: node src/server.js --version || echo "Server starts successfully"
+        run: node -c src/server.js
 
   build:
     name: Build Backend
