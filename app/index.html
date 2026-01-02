@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DevOps Deployment Status</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'><rect width='64' height='64' rx='8' fill='%230d1117'/><path d='M16 20L28 32L16 44' stroke='%232ea043' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/><path d='M34 44H48' stroke='%232ea043' stroke-width='6' stroke-linecap='round'/></svg>">
     <style>
         :root {
             --bg-color: #0d1117;
@@ -22,6 +23,9 @@
             height: 100vh;
             margin: 0;
             overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 20% 50%, rgba(88, 166, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(46, 160, 67, 0.1) 0%, transparent 50%);
         }
         .container {
             border: 2px solid var(--border-color);
@@ -32,6 +36,8 @@
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
             background: rgba(13, 17, 23, 0.95);
             position: relative;
+            animation: glow 3s infinite;
+            backdrop-filter: blur(10px);
         }
         .header {
             border-bottom: 1px solid var(--border-color);
@@ -60,11 +66,51 @@
             font-size: 0.9rem;
             margin-bottom: 20px;
             border: 1px solid var(--border-color);
+            scrollbar-width: none;  /* Firefox */
+            -ms-overflow-style: none;  /* IE and Edge */
+            position: relative;
+        }
+        .log-area::-webkit-scrollbar {
+            display: none;
+        }
+        .log-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    0deg,
+                    rgba(0, 255, 0, 0.03),
+                    rgba(0, 255, 0, 0.03) 1px,
+                    transparent 1px,
+                    transparent 2px
+                );
+            pointer-events: none;
         }
         .log-entry {
             margin-bottom: 5px;
             opacity: 0;
             animation: fadeIn 0.3s forwards;
+            position: relative;
+            padding-left: 15px;
+        }
+        .log-entry::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: var(--term-green);
+            animation: pulse 2s infinite;
+        }
+        .log-entry.success::before {
+            content: '✓';
+            color: var(--term-green);
+        }
+        .log-entry.error::before {
+            content: '✗';
+            color: #f85149;
         }
         .timestamp {
             color: #8b949e;
@@ -73,10 +119,60 @@
         .cmd { color: var(--term-blue); }
         .success { color: var(--term-green); }
         
+        .tech-stack {
+            background: rgba(88, 166, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .tech-stack p {
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tech-stack strong {
+            color: var(--term-blue);
+            background: rgba(88, 166, 255, 0.1);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.9rem;
+        }
+        .tech-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .tech-badge::before {
+            content: '●';
+            color: var(--term-green);
+            animation: pulse 2s infinite;
+        }
+        
         .footer {
             text-align: right;
             font-size: 0.8rem;
             color: #8b949e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .progress-bar {
+            width: 60%;
+            height: 4px;
+            background: rgba(88, 166, 255, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--term-blue), var(--term-green));
+            width: 0%;
+            animation: fillProgress 8s ease-in-out forwards;
+        }
+        @keyframes fillProgress {
+            to { width: 100%; }
         }
 
         @keyframes blink {
@@ -84,6 +180,14 @@
         }
         @keyframes fadeIn {
             to { opacity: 1; }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 5px rgba(88, 166, 255, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(88, 166, 255, 0.6); }
         }
         
         /* Scanline effect */
@@ -117,14 +221,17 @@
             </div>
 
         <div class="tech-stack">
-            <p>Infrastructure: <strong>AWS EC2</strong></p>
-            <p>Provisioning: <strong>Terraform</strong></p>
-            <p>Configuration: <strong>Ansible</strong></p>
-            <p>Environment: <strong>Nix Flake</strong></p>
+            <p>Infrastructure: <strong><span class="tech-badge">AWS EC2</span></strong></p>
+            <p>Provisioning: <strong><span class="tech-badge">Terraform</span></strong></p>
+            <p>Configuration: <strong><span class="tech-badge">Ansible</span></strong></p>
+            <p>Environment: <strong><span class="tech-badge">Nix Flake</span></strong></p>
         </div>
 
         <div class="footer">
-            Build ID: <span id="build-id">Unknown</span>
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <div>Build ID: <span id="build-id">Unknown</span></div>
         </div>
     </div>
 
@@ -153,6 +260,11 @@
                 const entry = document.createElement('div');
                 entry.className = 'log-entry';
                 const time = new Date().toLocaleTimeString();
+                
+                // Classify log type
+                if (text.includes("PASSED") || text.includes("successful")) {
+                    entry.classList.add('success');
+                }
                 
                 // Highlight keywords
                 let formattedText = text
