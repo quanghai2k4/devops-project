@@ -1,30 +1,277 @@
-- name: Deploy Cyberpunk Dashboard
+- name: Deploy DevOps Monitoring Dashboard
   hosts: webservers
-  become: true  # Chạy với quyền sudo (root)
-  
+  become: true
+  vars:
+    nodejs_version: "20"
+    backend_dir: "/opt/devops-monitoring/backend"
+    frontend_build_dir: "/var/www/html"
+    
   tasks:
+    # ===== System Setup =====
     - name: Update apt cache
       apt:
         update_cache: yes
         cache_valid_time: 3600
 
-    - name: Install Nginx
+    - name: Install required system packages
       apt:
-        name: nginx
+        name:
+          - curl
+          - git
+          - build-essential
+          - nginx
         state: present
 
-    - name: Remove default Nginx index.html
-      file:
-        path: /var/www/html/index.nginx-debian.html
-        state: absent
+    # ===== Node.js Installation =====
+    - name: Add NodeSource GPG key
+      shell: |
+        curl -fsSL https://deb.nodesource.com/setup_{{ nodejs_version }}.x | sudo -E bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
 
-    - name: Copy Dashboard to server
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    - name: Install PM2 globally
+      npm:
+        name: pm2
+        global: yes
+        state: present
+
+    # ===== Backend Deployment =====
+    - name: Create backend directory
+      file:
+        path: "{{ backend_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy backend source code
+      synchronize:
+        src: ../backend/
+        dest: "{{ backend_dir }}/"
+        delete: yes
+        rsync_opts:
+          - "--exclude=node_modules"
+          - "--exclude=data"
+          - "--exclude=.env"
+
+    - name: Install backend dependencies
+      npm:
+        path: "{{ backend_dir }}"
+        state: present
+        production: yes
+
+    - name: Create backend data directory
+      file:
+        path: "{{ backend_dir }}/data"
+        state: directory
+        mode: '0755'
+
+    - name: Create backend environment file
       copy:
-        src: ../app/index.html   # Đường dẫn trỏ tới file html ở thư mục app
-        dest: /var/www/html/index.html
+        dest: "{{ backend_dir }}/.env"
+        content: |
+          NODE_ENV=production
+          PORT=3001
+          CORS_ORIGIN=*
+          METRICS_INTERVAL=2000
+          LOG_LEVEL=info
+          NGINX_ACCESS_LOG=/var/log/nginx/access.log
+          NGINX_ERROR_LOG=/var/log/nginx/error.log
+          DEPLOYMENT_FILE=./data/deployment.json
         mode: '0644'
 
-    - name: Restart Nginx to apply changes
+    - name: Create initial deployment info
+      copy:
+        dest: "{{ backend_dir }}/data/deployment.json"
+        content: |
+          {
+            "version": "v1.0.0",
+            "deployedAt": "{{ ansible_date_time.iso8601 }}",
+            "commitHash": "ansible-deploy",
+            "deployedBy": "ansible"
+          }
+        mode: '0644'
+        force: no
+
+    - name: Stop existing PM2 processes
+      shell: pm2 delete devops-monitoring-backend || true
+      ignore_errors: yes
+
+    - name: Start backend with PM2
+      shell: |
+        cd {{ backend_dir }}
+        pm2 start src/server.js --name devops-monitoring-backend --time
+        pm2 save
+      environment:
+        NODE_ENV: production
+
+    - name: Setup PM2 startup script
+      shell: pm2 startup systemd -u root --hp /root
+      ignore_errors: yes
+
+    # ===== Frontend Deployment =====
+    - name: Create temp directory for frontend build
+      file:
+        path: /tmp/frontend-build
+        state: directory
+
+    - name: Copy frontend source to temp
+      synchronize:
+        src: ../frontend/
+        dest: /tmp/frontend-build/
+        delete: yes
+        rsync_opts:
+          - "--exclude=node_modules"
+          - "--exclude=dist"
+          - "--exclude=.env"
+
+    - name: Get IMDSv2 token
+      uri:
+        url: http://169.254.169.254/latest/api/token
+        method: PUT
+        headers:
+          X-aws-ec2-metadata-token-ttl-seconds: "21600"
+        return_content: yes
+      register: imds_token
+      
+    - name: Get public IP from EC2 metadata
+      uri:
+        url: http://169.254.169.254/latest/meta-data/public-ipv4
+        headers:
+          X-aws-ec2-metadata-token: "{{ imds_token.content }}"
+        return_content: yes
+      register: ec2_public_ip
+      
+    - name: Create production environment file for frontend
+      copy:
+        dest: /tmp/frontend-build/.env.production
+        content: |
+          VITE_API_URL=http://{{ ec2_public_ip.content }}
+          VITE_WS_URL=http://{{ ec2_public_ip.content }}
+        mode: '0644'
+
+    - name: Install frontend dependencies
+      npm:
+        path: /tmp/frontend-build
+        state: present
+
+    - name: Build frontend for production
+      shell: npm run build
+      args:
+        chdir: /tmp/frontend-build
+
+    - name: Remove old frontend files
+      file:
+        path: "{{ frontend_build_dir }}/{{ item }}"
+        state: absent
+      loop:
+        - index.html
+        - assets
+        - vite.svg
+
+    - name: Copy frontend build to web root
+      command: cp -r /tmp/frontend-build/dist/. {{ frontend_build_dir }}/
+      args:
+        removes: /tmp/frontend-build/dist
+
+    - name: Set correct permissions for web files
+      file:
+        path: "{{ frontend_build_dir }}"
+        owner: www-data
+        group: www-data
+        recurse: yes
+
+    # ===== Nginx Configuration =====
+    - name: Configure Nginx
+      copy:
+        dest: /etc/nginx/sites-available/devops-monitoring
+        content: |
+          server {
+              listen 80;
+              server_name _;
+
+              # Frontend - Serve React app
+              location / {
+                  root {{ frontend_build_dir }};
+                  try_files $uri $uri/ /index.html;
+                  expires 1h;
+                  add_header Cache-Control "public, immutable";
+              }
+
+              # Backend API - Proxy to Node.js
+              location /api {
+                  proxy_pass http://localhost:3001;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+              }
+
+              # WebSocket - Socket.io
+              location /socket.io {
+                  proxy_pass http://localhost:3001;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_cache_bypass $http_upgrade;
+              }
+
+              # Logging
+              access_log /var/log/nginx/access.log;
+              error_log /var/log/nginx/error.log;
+          }
+        mode: '0644'
+
+    - name: Enable Nginx site
+      file:
+        src: /etc/nginx/sites-available/devops-monitoring
+        dest: /etc/nginx/sites-enabled/devops-monitoring
+        state: link
+
+    - name: Remove default Nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Test Nginx configuration
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+
+    - name: Reload Nginx
       service:
         name: nginx
-        state: restarted
+        state: reloaded
+        enabled: yes
+
+    # ===== Cleanup =====
+    - name: Clean up temp frontend build
+      file:
+        path: /tmp/frontend-build
+        state: absent
+
+    # ===== Final Status =====
+    - name: Get public IP for display
+      set_fact:
+        display_ip: "{{ ec2_public_ip.content }}"
+        
+    - name: Display deployment info
+      debug:
+        msg:
+          - "=========================================="
+          - "✅ Deployment Complete!"
+          - "=========================================="
+          - "Dashboard URL: http://{{ display_ip }}"
+          - "Backend API: http://{{ display_ip }}/api"
+          - "Backend Status: pm2 status"
+          - "Backend Logs: pm2 logs devops-monitoring-backend"
+          - "=========================================="

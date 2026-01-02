@@ -1,5 +1,5 @@
 {
-  description = "DevOps Project Environment with Terraform, Ansible and AWS CLI";
+  description = "DevOps Monitoring Dashboard - Full Stack Environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -20,25 +20,42 @@
       {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
+            # DevOps Tools
             terraform      
             ansible        
             awscli2        
             sshpass        
 	    openssh
 	    lazygit
+            rsync          # Required for Ansible synchronize
+            
+            # Development Tools
+            nodejs_20      # Node.js 20 LTS
+            nodePackages.npm
+            nodePackages.nodemon
+            git
           ];
 
           shellHook = ''
-            echo "================================================"
-            echo "🚀 Welcome to DevOps Final Project Environment!"
-            echo "🛠️  Tools ready: Terraform, Ansible, AWS CLI"
-            echo "================================================"
+            echo "========================================================"
+            echo "🚀 DevOps Monitoring Dashboard - Dev Environment"
+            echo "========================================================"
+            echo "📦 DevOps Tools:"
+            echo "   - Terraform: $(terraform --version | head -n 1)"
+            echo "   - Ansible: $(ansible --version | head -n 1)"
+            echo "   - AWS CLI: $(aws --version)"
+            echo ""
+            echo "⚡ Development Tools:"
+            echo "   - Node.js: $(node --version)"
+            echo "   - npm: $(npm --version)"
+            echo ""
+            echo "💡 Quick Commands:"
+            echo "   tf     → terraform"
+            echo "   ans    → ansible-playbook"
+            echo "========================================================"
             
             alias tf="terraform"
             alias ans="ansible-playbook"
-            
-            echo "Terraform version: $(terraform --version | head -n 1)"
-            echo "Ansible version: $(ansible --version | head -n 1)"
           '';
         };
       }

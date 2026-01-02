@@ -1,0 +1,128 @@
+.metrics-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.metric-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--term-blue);
+  opacity: 0.5;
+}
+
+.metric-card.green::before {
+  background: var(--term-green);
+}
+
+.metric-card.yellow::before {
+  background: #d29922;
+}
+
+.metric-card.purple::before {
+  background: #a371f7;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--term-blue);
+  box-shadow: 0 4px 12px rgba(88, 166, 255, 0.2);
+}
+
+.metric-card.loading {
+  opacity: 0.5;
+  animation: pulse 2s infinite;
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.metric-title {
+  font-size: 0.9rem;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.metric-icon {
+  font-size: 1.2rem;
+  animation: pulse 2s infinite;
+}
+
+.metric-card.blue .metric-icon {
+  color: var(--term-blue);
+}
+
+.metric-card.green .metric-icon {
+  color: var(--term-green);
+}
+
+.metric-card.yellow .metric-icon {
+  color: #d29922;
+}
+
+.metric-card.purple .metric-icon {
+  color: #a371f7;
+}
+
+.metric-value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.unit {
+  font-size: 1.2rem;
+  color: #8b949e;
+}
+
+.metric-subtitle {
+  font-size: 0.85rem;
+  color: #6e7681;
+}
+
+@media (max-width: 768px) {
+  .metrics-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  .metric-card {
+    padding: 1rem;
+  }
+  
+  .value {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics-cards {
+    grid-template-columns: 1fr;
+  }
+}
