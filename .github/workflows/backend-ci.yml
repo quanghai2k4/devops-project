@@ -27,7 +27,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: backend
-        run: npm ci
+        run: npm install
 
       - name: Lint code
         working-directory: backend
@@ -57,7 +57,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: backend
-        run: npm ci
+        run: npm install
 
       - name: Create deployment package
         working-directory: backend
