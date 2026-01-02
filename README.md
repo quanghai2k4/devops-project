@@ -40,21 +40,3 @@ ansible-playbook -i inventory.ini playbook.yml
 ```
 
 Access dashboard at `http://[EC2_PUBLIC_IP]`
-
-## Local Development
-
-### Backend
-```bash
-cd backend
-npm install
-cp .env.example .env
-npm run dev  # http://localhost:3001
-```
-
-### Frontend
-```bash
-cd frontend
-npm install
-cp .env.example .env
-npm run dev  # http://localhost:5173
-```
